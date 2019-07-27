@@ -47,6 +47,9 @@ public class ExampleDTLSServerConfig {
 	@Parameter(names = "-help", required = false, description = "Prints usage")
 	private boolean help = false;
 	
+	@Parameter(names = "-continuous", required = false, description = "Listens for clients in an infinite loop, otherwise terminates on processing the first client")
+	private boolean continuous = false;
+	
 	public String getTrustLocation() {
 		return trustLocation;
 	}
@@ -88,5 +91,10 @@ public class ExampleDTLSServerConfig {
 	public String getPskIdentity() {
 		return pskIdentity;
 	}
+	
+	public boolean isContinuous() {
+		return continuous;
+	}
+
 	
 }
