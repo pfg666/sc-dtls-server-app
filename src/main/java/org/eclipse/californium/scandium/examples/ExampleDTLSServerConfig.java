@@ -12,14 +12,14 @@ import com.beust.jcommander.Parameter;
  */
 public class ExampleDTLSServerConfig {
 	private static final String DEFAULT_TRUST_STORE_PASSWORD = "student";
-	private static final String DEFAULT_TRUST_STORE_LOCATION = "rsa2048.jks";
+	private static final String DEFAULT_TRUST_STORE_LOCATION = "ec_secp256r1.jks";
 	private static final String DEFAULT_TRUST_STORE_ALIAS = "tls-attacker";
 	private static final int DEFAULT_PORT = 20000; 
 	
 	@Parameter(names = "-port", required = false, description = "The port the server is listening to")
 	private Integer port = DEFAULT_PORT;
 	
-	@Parameter(names = "-trustLocation", required = false, description = "The localtion of the trust store to use")
+	@Parameter(names = "-trustLocation", required = false, description = "The location of the trust store to use")
 	private String trustLocation = DEFAULT_TRUST_STORE_LOCATION;
 	
 	@Parameter(names = "-trustAlias", required = false, description = "The alias looked up to gather certs from the trust store")
@@ -28,6 +28,15 @@ public class ExampleDTLSServerConfig {
 	@Parameter(names = "-trustPassword", required = false, description = "The password with which the trust store is protected")
 	private String trustPassword = DEFAULT_TRUST_STORE_PASSWORD;
 	
+	@Parameter(names = "-keyLocation", required = false, description = "The location of the key store to use")
+	private String keyLocation = DEFAULT_TRUST_STORE_LOCATION;
+	
+	@Parameter(names = "-keyAlias", required = false, description = "The alias looked up to gather certs from the trust store")
+	private String keyAlias = DEFAULT_TRUST_STORE_ALIAS;
+
+	@Parameter(names = "-keyPassword", required = false, description = "The location with which the key store is protected")
+	private String keyPassword = DEFAULT_TRUST_STORE_PASSWORD;
+
 	@Parameter(names = "-pskKey", converter=HexStringToBytesConverter.class, required = false, description = "The password (in hex form without the prefix 0x) with which the trust store is protected")
 	private byte [] pskKey = new byte [] {0x12, 0x34}; 
 
@@ -47,6 +56,9 @@ public class ExampleDTLSServerConfig {
 	@Parameter(names = "-help", required = false, description = "Prints usage")
 	private boolean help = false;
 	
+	@Parameter(names = "-starterAddress", required = false, description = "Uses a thread starter listening at ip_address:port")
+	private String starterAddress = null;
+	
 	public String getTrustLocation() {
 		return trustLocation;
 	}
@@ -58,7 +70,19 @@ public class ExampleDTLSServerConfig {
 	public String getTrustPassword() {
 		return trustPassword;
 	}
+	
+	public String getKeyLocation() {
+		return keyLocation;
+	}
 
+	public String getKeyPassword() {
+		return keyPassword;
+	}
+	
+	public String getKeyAlias() {
+		return keyAlias;
+	}
+	
 	public Integer getTimeout() {
 		return timeout;
 	}
@@ -87,6 +111,10 @@ public class ExampleDTLSServerConfig {
 
 	public String getPskIdentity() {
 		return pskIdentity;
+	}
+	
+	public String getStarterAddress() {
+		return starterAddress;
 	}
 	
 }

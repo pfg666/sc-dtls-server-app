@@ -17,20 +17,19 @@
  ******************************************************************************/
 package org.eclipse.californium.scandium.examples;
 
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
+import java.net.SocketException;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
+import java.security.PrivateKey;
 import java.security.cert.Certificate;
-import java.util.concurrent.Executors;
 
 import org.eclipse.californium.elements.Connector;
 import org.eclipse.californium.elements.RawData;
 import org.eclipse.californium.elements.RawDataChannel;
-import org.eclipse.californium.elements.util.SslContextUtil;
 import org.eclipse.californium.scandium.DTLSConnector;
 import org.eclipse.californium.scandium.config.DtlsConnectorConfig;
 import org.eclipse.californium.scandium.dtls.CertificateType;
@@ -43,11 +42,8 @@ import com.beust.jcommander.JCommander;
 
 public class ExampleDTLSServer {
 
-	private static final int DEFAULT_PORT = 20000;
 	private static final Logger LOG = LoggerFactory
 			.getLogger(ExampleDTLSServer.class.getName());
-	private static final char[] KEY_STORE_PASSWORD = "endPass".toCharArray();
-	private static final String KEY_STORE_LOCATION = "certs/keyStore.jks";
 
 	private DTLSConnector dtlsConnector;
 
@@ -55,28 +51,16 @@ public class ExampleDTLSServer {
 		InMemoryPskStore pskStore = new InMemoryPskStore();
 		// put in the PSK store the default identity/psk for tinydtls tests
 		pskStore.setKey(config.getPskIdentity(), config.getPskKey());
-		Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
-
-			@Override
-			public void run() {
-				try {
-					new File("created").createNewFile();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-			}
-			
-		}));
 		try {
-			// load server credentials 
-			SslContextUtil.Credentials serverCredentials = SslContextUtil.loadCredentials(
-					SslContextUtil.CLASSPATH_SCHEME + KEY_STORE_LOCATION, "server", KEY_STORE_PASSWORD,
-					KEY_STORE_PASSWORD);
-
 			// load the trust store
 			KeyStore trustStore = KeyStore.getInstance("JKS");
 			InputStream inTrust = new FileInputStream(config.getTrustLocation()); 
 			trustStore.load(inTrust, config.getTrustPassword().toCharArray());
+			
+			// load the key store
+			KeyStore keyStore = KeyStore.getInstance("JKS");
+			InputStream inKey = new FileInputStream(config.getKeyLocation());
+			keyStore.load(inKey, config.getKeyPassword().toCharArray());
 
 			// You can load multiple certificates if needed
 			Certificate[] trustedCertificates = new Certificate[1];
@@ -84,9 +68,9 @@ public class ExampleDTLSServer {
 			
 			DtlsConnectorConfig.Builder builder = new DtlsConnectorConfig.Builder();
 			builder.setPskStore(pskStore);
-			builder.setAddress(new InetSocketAddress(DEFAULT_PORT));
-			builder.setIdentity(serverCredentials.getPrivateKey(), serverCredentials.getCertificateChain(),
-					CertificateType.RAW_PUBLIC_KEY, CertificateType.X_509);
+			builder.setAddress(new InetSocketAddress(config.getPort()));
+			builder.setIdentity((PrivateKey)keyStore.getKey(config.getKeyAlias(), config.getKeyPassword().toCharArray()),
+					keyStore.getCertificateChain(config.getKeyAlias()), CertificateType.X_509);
 			builder.setSupportedCipherSuites(config.getCipherSuites().toArray(new CipherSuite [config.getCipherSuites().size()]));
 			builder.setRetransmissionTimeout(config.getTimeout());
 			builder.setTrustStore(trustedCertificates);
@@ -94,7 +78,6 @@ public class ExampleDTLSServer {
 			builder.setEnableAddressReuse(true);
 			dtlsConnector = new DTLSConnector(builder.build());
 			dtlsConnector.setRawDataReceiver(new RawDataChannelImpl(dtlsConnector));
-
 		} catch (GeneralSecurityException | IOException e) {
 			LOG.error("Could not load the keystore", e);
 		}
@@ -104,7 +87,7 @@ public class ExampleDTLSServer {
 	public void start() {
 		try {
 			dtlsConnector.start();
-			System.out.println("DTLS example server started");
+			LOG.info("DTLS example server started");
 		} catch (IOException e) {
 			throw new IllegalStateException(
 					"Unexpected error starting the DTLS UDP server", e);
@@ -113,7 +96,9 @@ public class ExampleDTLSServer {
 	
 	public void stop() {
 		if (dtlsConnector.isRunning()) {
-			dtlsConnector.stop();
+			// we (hopefully) destroy any leftover state
+			dtlsConnector.destroy();
+			LOG.info("DTLS example server stopped");
 		}
 	}
 
@@ -146,15 +131,29 @@ public class ExampleDTLSServer {
 			return;
 		}
 	
-		ExampleDTLSServer server = new ExampleDTLSServer(config);
-		server.start();
-		try {
-			for (;;) {
-				Thread.sleep(10);
+		final ExampleDTLSServer server = new ExampleDTLSServer(config);
+		if (config.getStarterAddress() == null) {
+			server.start();
+			try {
+				for (;;) {
+					Thread.sleep(10);
+				}
+			} catch (InterruptedException e) {
+				System.out.println(e);
+				server.stop();
 			}
-		} catch (InterruptedException e) {
-			System.out.println(e);
-			server.stop();
+		} else {
+			try {
+				new ThreadStarter(() -> 
+				new Thread(new Runnable() {
+					public void run() {
+						server.stop();
+						server.start();
+					}
+				}), config.getStarterAddress()).run();
+			} catch (SocketException e) {
+				e.printStackTrace();
+			};
 		}
 	}
 }
