@@ -50,14 +50,14 @@ public class ExampleDTLSServerConfig {
 	private List<CipherSuite> cipherSuites = Arrays.asList(CipherSuite.TLS_PSK_WITH_AES_128_CBC_SHA256,
 					CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256);
 	
-	@Parameter(names = "-reqCert", required = false, description = "Request client certificates")
-	private boolean reqCert = false;
-	
 	@Parameter(names = "-help", required = false, description = "Prints usage")
 	private boolean help = false;
 	
 	@Parameter(names = "-starterAddress", required = false, description = "Uses a thread starter listening at ip_address:port")
 	private String starterAddress = null;
+	
+	@Parameter(names = "-clientAuth", required = false, description = "Defines the authentication method.")
+	private ClientAuth clientAuth = ClientAuth.DISABLED;
 	
 	public String getTrustLocation() {
 		return trustLocation;
@@ -87,8 +87,8 @@ public class ExampleDTLSServerConfig {
 		return timeout;
 	}
 
-	public boolean isReqCert() {
-		return reqCert;
+	public ClientAuth getClientAuth() {
+		return clientAuth;
 	}
 	
 	public boolean isHelp() {

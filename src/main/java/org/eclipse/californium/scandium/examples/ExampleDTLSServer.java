@@ -51,6 +51,7 @@ public class ExampleDTLSServer {
 		InMemoryPskStore pskStore = new InMemoryPskStore();
 		// put in the PSK store the default identity/psk for tinydtls tests
 		pskStore.setKey(config.getPskIdentity(), config.getPskKey());
+		
 		try {
 			// load the trust store
 			KeyStore trustStore = KeyStore.getInstance("JKS");
@@ -62,10 +63,6 @@ public class ExampleDTLSServer {
 			InputStream inKey = new FileInputStream(config.getKeyLocation());
 			keyStore.load(inKey, config.getKeyPassword().toCharArray());
 
-			// You can load multiple certificates if needed
-			Certificate[] trustedCertificates = new Certificate[1];
-			trustedCertificates[0] = trustStore.getCertificate(config.getTrustAlias());
-			
 			DtlsConnectorConfig.Builder builder = new DtlsConnectorConfig.Builder();
 			builder.setPskStore(pskStore);
 			builder.setAddress(new InetSocketAddress(config.getPort()));
@@ -73,9 +70,24 @@ public class ExampleDTLSServer {
 					keyStore.getCertificateChain(config.getKeyAlias()), CertificateType.X_509);
 			builder.setSupportedCipherSuites(config.getCipherSuites().toArray(new CipherSuite [config.getCipherSuites().size()]));
 			builder.setRetransmissionTimeout(config.getTimeout());
+			
+			// You can load multiple certificates if needed
+			Certificate[] trustedCertificates = new Certificate[1];
+			trustedCertificates[0] = trustStore.getCertificate(config.getTrustAlias());
 			builder.setTrustStore(trustedCertificates);
-			builder.setClientAuthenticationRequired(config.isReqCert());
-			builder.setEnableAddressReuse(true);
+			
+			switch(config.getClientAuth()) {
+			case NEEDED:
+				builder.setClientAuthenticationRequired(true);
+				break;
+			case WANTED:
+				builder.setClientAuthenticationRequired(false);
+				builder.setClientAuthenticationWanted(true);
+				break;
+			case DISABLED:
+				builder.setClientAuthenticationRequired(false);
+				builder.setClientAuthenticationWanted(false);
+			}
 			dtlsConnector = new DTLSConnector(builder.build());
 			dtlsConnector.setRawDataReceiver(new RawDataChannelImpl(dtlsConnector));
 		} catch (GeneralSecurityException | IOException e) {
