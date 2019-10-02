@@ -40,7 +40,7 @@ import org.slf4j.LoggerFactory;
 
 import com.beust.jcommander.JCommander;
 
-public class ExampleDTLSServer {
+public class ExampleDTLSServer extends Thread {
 
 	private static final Logger LOG = LoggerFactory
 			.getLogger(ExampleDTLSServer.class.getName());
@@ -70,6 +70,7 @@ public class ExampleDTLSServer {
 					keyStore.getCertificateChain(config.getKeyAlias()), CertificateType.X_509);
 			builder.setSupportedCipherSuites(config.getCipherSuites().toArray(new CipherSuite [config.getCipherSuites().size()]));
 			builder.setRetransmissionTimeout(config.getTimeout());
+			builder.setReceiverThreadCount(1);
 			
 			// You can load multiple certificates if needed
 			Certificate[] trustedCertificates = new Certificate[1];
@@ -96,7 +97,7 @@ public class ExampleDTLSServer {
 
 	}
 
-	public void start() {
+	public void startServer() {
 		try {
 			dtlsConnector.start();
 			LOG.info("DTLS example server started");
@@ -106,11 +107,20 @@ public class ExampleDTLSServer {
 		}
 	}
 	
-	public void stop() {
-		if (dtlsConnector.isRunning()) {
-			// we (hopefully) destroy any leftover state
-			dtlsConnector.destroy();
-			LOG.info("DTLS example server stopped");
+	public void stopServer() {
+		// we (hopefully) destroy any leftover state
+		dtlsConnector.destroy();
+		LOG.info("DTLS example server stopped");
+	}
+	
+	public void run() {
+		startServer();
+		try {
+			for (;;) {
+				Thread.sleep(10);
+			}
+		} catch (InterruptedException e) {
+			stopServer();
 		}
 	}
 
@@ -145,26 +155,20 @@ public class ExampleDTLSServer {
 	
 		final ExampleDTLSServer server = new ExampleDTLSServer(config);
 		if (config.getStarterAddress() == null) {
-			server.start();
-			try {
-				for (;;) {
-					Thread.sleep(10);
-				}
-			} catch (InterruptedException e) {
-				System.out.println(e);
-				server.stop();
-			}
+			server.run();
 		} else {
 			try {
-				new ThreadStarter(() -> 
-				new Thread(new Runnable() {
-					public void run() {
-						server.stop();
-						server.start();
-					}
-				}), config.getStarterAddress()).run();
+				ThreadStarter ts = new ThreadStarter(() -> 
+						server, 
+						config.getStarterAddress(),
+						config.isStarterAck());
+				ts.run();
 			} catch (SocketException e) {
 				e.printStackTrace();
+				server.stopServer();
+			} catch (IOException e) {
+				e.printStackTrace();
+				server.stopServer();
 			};
 		}
 	}
