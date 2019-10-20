@@ -17,26 +17,28 @@ import java.util.function.Supplier;
  */
 public class ThreadStarter {
 	
-	private Supplier<Thread> supplier;
+	private Supplier<ExampleDTLSServer> supplier;
 	private ServerSocket srvSocket;
-	private Thread dtlsServerThread;
+	private ExampleDTLSServer dtlsServerThread;
 	private Socket cmdSocket;
-	private boolean ack;
+	private Integer port;
+	private boolean continuous;
 	
-	public ThreadStarter(Supplier<Thread> supplier, String ipPort, boolean ack) throws IOException {
+	public ThreadStarter(Supplier<ExampleDTLSServer> supplier, String ipPort, boolean continuous) throws IOException {
 		String[] addr = ipPort.split("\\:");
-		InetSocketAddress address = new InetSocketAddress(addr[0], Integer.valueOf(addr[1]));		
+		port = Integer.valueOf(addr[1]);
+		InetSocketAddress address = new InetSocketAddress(addr[0], port);		
 		this.supplier = supplier;
 		srvSocket = new ServerSocket();
 		srvSocket.setReuseAddress(true);
 		srvSocket.bind(address);
-		this.ack = ack;
+		this.continuous = continuous;
 		
 		Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
 			@Override
 			public void run() {
 				try {
-					ThreadStarter.this.close();
+					ThreadStarter.this.closeAll();
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
@@ -46,55 +48,78 @@ public class ThreadStarter {
 	
 	public void run() throws IOException {
 		System.out.println("Listening at " + srvSocket.getInetAddress() + ":" + srvSocket.getLocalPort());
-		cmdSocket = srvSocket.accept();
-		BufferedReader in = new BufferedReader(new InputStreamReader(cmdSocket.getInputStream()));
-		BufferedWriter out = new BufferedWriter(new OutputStreamWriter(cmdSocket.getOutputStream()));
-		dtlsServerThread = null;
-		while (true) {
-			try {
-				String cmd = in.readLine();
-				System.out.println("Received: " + cmd);
-				if (cmd != null) {
-					switch(cmd.trim()) {
-					case "reset":
-						if (dtlsServerThread != null) {
-							dtlsServerThread.interrupt();
-						}
-						dtlsServerThread = supplier.get();
-						dtlsServerThread.start();
-						if (ack) {
-							out.write("ack");
+		do {
+			cmdSocket = srvSocket.accept();
+			BufferedReader in = new BufferedReader(new InputStreamReader(cmdSocket.getInputStream()));
+			BufferedWriter out = new BufferedWriter(new OutputStreamWriter(cmdSocket.getOutputStream()));
+			dtlsServerThread = null;
+			while (true) {
+				try {
+					String cmd = in.readLine();
+					System.out.println("Received: " + cmd);
+					if (cmd != null) {
+						switch(cmd.trim()) {
+							// command for killing the current server thread and spawning a new one
+						case "reset":
+							// empty space acts as reset, used for debugging purposes
+						case "":
+							// we interrupt any existing server thread
+							if (dtlsServerThread != null) {
+								dtlsServerThread.interrupt();
+								while (dtlsServerThread.isAlive()) {
+									Thread.sleep(1);
+								}
+							}
+							
+							// spawn a new dtls server thread
+							dtlsServerThread = supplier.get();
+							dtlsServerThread.start();
+							
+							// we wait for the server to launch, retrieve the port
+							// and then, communicate the port to the other side
+							while (!dtlsServerThread.isRunning()) {
+								Thread.sleep(1);
+							}
+							out.write(String.valueOf(dtlsServerThread.getAddress().getPort()));
 							out.newLine();
 							out.flush();
+							break;
+							
+							// command for exiting
+						case "exit":
+							closeAll();
+							return;
 						}
+					} else {
+						System.out.println("Received Nothing");
+						closeData();
 						break;
-					case "exit":
-						close();
-						return;
 					}
-				} else {
-					close();
+				} catch (Exception e) {
+					String errorFileName = "ts.error." + port + ".log";
+					PrintWriter errorPw = new PrintWriter(new FileWriter(errorFileName));
+					e.printStackTrace(errorPw);
+					e.printStackTrace();
+					errorPw.close();
+					closeAll();
 					return;
 				}
-			} catch (Exception e) {
-				String errorFileName = "ts.error" + (System.currentTimeMillis() / 1000) + ".log";
-				PrintWriter errorPw = new PrintWriter(new FileWriter(errorFileName));
-				e.printStackTrace(errorPw);
-				errorPw.close();
-				close();
-				return;
 			}
-		}
+		} while(continuous);
 	}
 	
-	private void close() throws IOException {
+	private void closeAll() throws IOException {
 		System.out.println("Shutting down thread starter");
+		closeData();
+		srvSocket.close();
+	}
+	
+	private void closeData() throws IOException{
 		if (dtlsServerThread != null) {
 			dtlsServerThread.interrupt();
 		}
 		if (cmdSocket != null) {
 			cmdSocket.close();
 		}
-		srvSocket.close();
 	}
 }

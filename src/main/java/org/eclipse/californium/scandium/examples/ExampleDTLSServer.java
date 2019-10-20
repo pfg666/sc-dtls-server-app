@@ -123,6 +123,14 @@ public class ExampleDTLSServer extends Thread {
 			stopServer();
 		}
 	}
+	
+	public boolean isRunning() {
+		return dtlsConnector.isRunning();
+	}
+	
+	public InetSocketAddress getAddress() {
+		return dtlsConnector.getAddress();
+	}
 
 
 	private class RawDataChannelImpl implements RawDataChannel {
@@ -161,7 +169,7 @@ public class ExampleDTLSServer extends Thread {
 				ThreadStarter ts = new ThreadStarter(() -> 
 						server, 
 						config.getStarterAddress(),
-						config.isStarterAck());
+						config.isContinuous());
 				ts.run();
 			} catch (SocketException e) {
 				e.printStackTrace();
