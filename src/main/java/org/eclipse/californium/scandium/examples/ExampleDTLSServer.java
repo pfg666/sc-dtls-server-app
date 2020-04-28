@@ -40,7 +40,11 @@ import org.slf4j.LoggerFactory;
 
 import com.beust.jcommander.JCommander;
 
-public class ExampleDTLSServer extends Thread {
+
+/**
+ * A restartable DTLS server.
+ */
+public class ExampleDTLSServer extends Thread{
 
 	private static final Logger LOG = LoggerFactory
 			.getLogger(ExampleDTLSServer.class.getName());
@@ -65,11 +69,14 @@ public class ExampleDTLSServer extends Thread {
 
 			DtlsConnectorConfig.Builder builder = new DtlsConnectorConfig.Builder();
 			builder.setPskStore(pskStore);
-			builder.setAddress(new InetSocketAddress(config.getPort()));
+			if (config.getStarterAddress() == null) {
+				builder.setAddress(new InetSocketAddress(config.getPort()));
+			}
 			builder.setIdentity((PrivateKey)keyStore.getKey(config.getKeyAlias(), config.getKeyPassword().toCharArray()),
 					keyStore.getCertificateChain(config.getKeyAlias()), CertificateType.X_509);
 			builder.setSupportedCipherSuites(config.getCipherSuites().toArray(new CipherSuite [config.getCipherSuites().size()]));
 			builder.setRetransmissionTimeout(config.getTimeout());
+			builder.setMaxConnections(config.getMaxConnections());
 			builder.setReceiverThreadCount(1);
 			
 			// You can load multiple certificates if needed
@@ -166,8 +173,7 @@ public class ExampleDTLSServer extends Thread {
 			server.run();
 		} else {
 			try {
-				ThreadStarter ts = new ThreadStarter(() -> 
-						server, 
+				ThreadStarter ts = new ThreadStarter(server, 
 						config.getStarterAddress(),
 						config.isContinuous());
 				ts.run();

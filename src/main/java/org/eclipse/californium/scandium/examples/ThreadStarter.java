@@ -10,25 +10,24 @@ import java.io.PrintWriter;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.function.Supplier;
 
 /**
  * We use this class to avoid having to restart the vm (which is can be a slow process). 
+ * 
  */
 public class ThreadStarter {
 	
-	private Supplier<ExampleDTLSServer> supplier;
 	private ServerSocket srvSocket;
-	private ExampleDTLSServer dtlsServerThread;
+	private ExampleDTLSServer dtlsServer;
 	private Socket cmdSocket;
 	private Integer port;
 	private boolean continuous;
 	
-	public ThreadStarter(Supplier<ExampleDTLSServer> supplier, String ipPort, boolean continuous) throws IOException {
+	public ThreadStarter(ExampleDTLSServer dtlsServer, String ipPort, boolean continuous) throws IOException {
 		String[] addr = ipPort.split("\\:");
 		port = Integer.valueOf(addr[1]);
 		InetSocketAddress address = new InetSocketAddress(addr[0], port);		
-		this.supplier = supplier;
+		this.dtlsServer = dtlsServer;
 		srvSocket = new ServerSocket();
 		srvSocket.setReuseAddress(true);
 		srvSocket.bind(address);
@@ -52,7 +51,6 @@ public class ThreadStarter {
 			cmdSocket = srvSocket.accept();
 			BufferedReader in = new BufferedReader(new InputStreamReader(cmdSocket.getInputStream()));
 			BufferedWriter out = new BufferedWriter(new OutputStreamWriter(cmdSocket.getOutputStream()));
-			dtlsServerThread = null;
 			while (true) {
 				try {
 					String cmd = in.readLine();
@@ -63,24 +61,12 @@ public class ThreadStarter {
 						case "reset":
 							// empty space acts as reset, used for debugging purposes
 						case "":
-							// we interrupt any existing server thread
-							if (dtlsServerThread != null) {
-								dtlsServerThread.interrupt();
-								while (dtlsServerThread.isAlive()) {
-									Thread.sleep(1);
-								}
-							}
+							// we stop the server and restart it
+							// synchronization is taken care of by the scandium library, meaning we don't have to wait until the server is running
+							dtlsServer.stopServer();
+							dtlsServer.startServer();
 							
-							// spawn a new dtls server thread
-							dtlsServerThread = supplier.get();
-							dtlsServerThread.start();
-							
-							// we wait for the server to launch, retrieve the port
-							// and then, communicate the port to the other side
-							while (!dtlsServerThread.isRunning()) {
-								Thread.sleep(1);
-							}
-							out.write(String.valueOf(dtlsServerThread.getAddress().getPort()));
+							out.write(String.valueOf(dtlsServer.getAddress().getPort()));
 							out.newLine();
 							out.flush();
 							break;
@@ -115,8 +101,8 @@ public class ThreadStarter {
 	}
 	
 	private void closeData() throws IOException{
-		if (dtlsServerThread != null) {
-			dtlsServerThread.interrupt();
+		if (dtlsServer != null) {
+			dtlsServer.stopServer();
 		}
 		if (cmdSocket != null) {
 			cmdSocket.close();

@@ -65,6 +65,9 @@ public class ExampleDTLSServerConfig {
 	@Parameter(names = "-clientAuth", required = false, description = "Defines the authentication method.")
 	private ClientAuth clientAuth = ClientAuth.DISABLED;
 	
+	@Parameter(names = "-maxConnections", required = false, description = "The maximum number of connections.")
+	private Integer maxConnections = 1;
+	
 	public String getTrustLocation() {
 		return trustLocation;
 	}
@@ -129,6 +132,10 @@ public class ExampleDTLSServerConfig {
 	
 	public boolean isContinuous() {
 		return continuous;
+	}
+	
+	public Integer getMaxConnections() {
+		return maxConnections;
 	}
 	
 }
