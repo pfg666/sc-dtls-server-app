@@ -73,7 +73,7 @@ public class ExampleDTLSClient implements Runnable {
 			builder.setPskStore(pskStore);
 			builder.setIdentity((PrivateKey)keyStore.getKey(config.getKeyAlias(), config.getKeyPassword().toCharArray()),
 					keyStore.getCertificateChain(config.getKeyAlias()), CertificateType.X_509);
-			builder.setRecommendedCipherSuitesOnly(false);
+			//builder.setRecommendedCipherSuitesOnly(false);
 			builder.setSupportedCipherSuites(config.getCipherSuites().toArray(new CipherSuite [config.getCipherSuites().size()]));
 			builder.setRetransmissionTimeout(config.getTimeout());
 			
