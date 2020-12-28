@@ -5,11 +5,8 @@
 
 	<modelVersion>4.0.0</modelVersion>
 
-	<parent>
-		<groupId>org.eclipse.californium</groupId>
-		<artifactId>demo-apps</artifactId>
-		<version>2.0.0-M16</version>
-	</parent>
+	<version>2.0.0-M16</version>
+    <groupId>org.eclipse.californium.demo-apps</groupId>
 	<artifactId>sc-dtls-example-server</artifactId>
 
 	<name>Sc-DTLS-Example-Server</name>
@@ -17,34 +14,62 @@
 
 	<properties>
 		<assembly.mainClass>org.eclipse.californium.scandium.examples.ExampleDTLSServer</assembly.mainClass>
+        <maven.compiler.target>1.8</maven.compiler.target>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <project.build.javaVersion>1.8</project.build.javaVersion>
 	</properties>
 
 	<dependencies>
 		<dependency>
-			<groupId>${project.groupId}</groupId>
+			<groupId>org.eclipse.californium</groupId>
 			<artifactId>scandium</artifactId>
+            <version>${project.version}</version>
 		</dependency>
 		
 		<dependency>
             <groupId>com.beust</groupId>
             <artifactId>jcommander</artifactId>
             <version>1.69</version>
+        </dependency>	
+
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>1.2.3</version>
         </dependency>
-		
-		<!-- runtime dependencies -->
-		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>demo-certs</artifactId>
-			<scope>runtime</scope>
-		</dependency>
 	</dependencies>
 
 	<build>
-		<plugins>
-			<plugin>
-				<artifactId>maven-assembly-plugin</artifactId>
-				<!-- inherit configuration from parent POM -->
-			</plugin>
-		</plugins>
+        <plugins>
+            <plugin>
+                <!-- NOTE: We don't need a groupId specification because the group is
+                    org.apache.maven.plugins ...which is assumed by default.
+                -->
+                <artifactId>maven-assembly-plugin</artifactId>
+                <version>3.3.0</version>
+                <configuration>
+                    <descriptorRefs>
+                        <descriptorRef>jar-with-dependencies</descriptorRef>
+                    </descriptorRefs>
+                    <archive>
+                        <manifest>
+                            <mainClass>org.eclipse.californium.scandium.examples.ExampleDTLSServer</mainClass>
+                        </manifest>
+                    </archive>
+                    <finalName>scandium-${project.version}-dtls-server</finalName>
+                    <appendAssemblyId>false</appendAssemblyId>
+                </configuration>
+
+                <executions>
+                    <execution>
+                        <id>make-assembly</id> <!-- this is used for inheritance merges -->
+                        <phase>package</phase> <!-- bind to the packaging phase -->
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
 	</build>
 </project>
