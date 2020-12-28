@@ -75,7 +75,7 @@ public class ExampleDTLSServer extends Thread {
 			}
 			builder.setIdentity((PrivateKey)keyStore.getKey(config.getKeyAlias(), config.getKeyPassword().toCharArray()),
 					keyStore.getCertificateChain(config.getKeyAlias()), CertificateType.X_509);
-			//builder.setRecommendedCipherSuitesOnly(false);
+			builder.setRecommendedCipherSuitesOnly(false);
 			builder.setSupportedCipherSuites(config.getCipherSuites().toArray(new CipherSuite [config.getCipherSuites().size()]));
 			builder.setRetransmissionTimeout(config.getTimeout());
 			builder.setMaxConnections(config.getMaxConnections());
