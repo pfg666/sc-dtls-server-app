@@ -181,7 +181,7 @@ public class ExampleDTLSClient implements Runnable {
 	
 		final ExampleDTLSClient client = new ExampleDTLSClient(config);
 		if (config.getStarterAddress() == null) {
-			System.out.println("Waiting " + config.getStartTimeout() + " ms");
+			LOG.info("Waiting {} ms", config.getStartTimeout());
 			Thread.sleep(config.getStartTimeout());
 			client.run();
 		} else {
