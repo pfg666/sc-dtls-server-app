@@ -39,7 +39,8 @@ import org.eclipse.californium.scandium.DTLSConnector;
 import org.eclipse.californium.scandium.config.DtlsConnectorConfig;
 import org.eclipse.californium.scandium.dtls.CertificateType;
 import org.eclipse.californium.scandium.dtls.cipher.CipherSuite;
-import org.eclipse.californium.scandium.dtls.pskstore.InMemoryPskStore;
+import org.eclipse.californium.scandium.dtls.pskstore.PskStore;
+import org.eclipse.californium.scandium.dtls.pskstore.StaticPskStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,8 +57,7 @@ public class ExampleDTLSClient implements Runnable {
 	
 	
 	public ExampleDTLSClient(ExampleDTLSClientConfig config) {
-		InMemoryPskStore pskStore = new InMemoryPskStore();
-		pskStore.setKey(config.getPskIdentity(), config.getPskKey());
+		PskStore pskStore = new StaticPskStore(config.getPskIdentity(), config.getPskKey());
 		try {
 			// load the trust store
 			KeyStore trustStore = KeyStore.getInstance("JKS");
