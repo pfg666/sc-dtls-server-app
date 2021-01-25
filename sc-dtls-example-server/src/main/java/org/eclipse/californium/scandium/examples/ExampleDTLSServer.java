@@ -33,7 +33,7 @@ import org.eclipse.californium.elements.RawDataChannel;
 import org.eclipse.californium.scandium.DTLSConnector;
 import org.eclipse.californium.scandium.config.DtlsConnectorConfig;
 import org.eclipse.californium.scandium.dtls.CertificateType;
-import org.eclipse.californium.scandium.dtls.cipher.CipherSuite;
+import org.eclipse.californium.scandium.dtls.cipher.CipherSuite.CertificateKeyAlgorithm;
 import org.eclipse.californium.scandium.dtls.pskstore.InMemoryPskStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,7 +43,7 @@ import com.beust.jcommander.ParameterException;
 
 
 /**
- * A restartable DTLS server.
+ * A restartable echo-capable DTLS server.
  */
 public class ExampleDTLSServer extends Thread {
 
@@ -51,42 +51,49 @@ public class ExampleDTLSServer extends Thread {
 			.getLogger(ExampleDTLSServer.class.getName());
 
 	private DTLSConnector dtlsConnector;
+	private Operation operation;
 
 	public ExampleDTLSServer(ExampleDTLSServerConfig config) {
-		InMemoryPskStore pskStore = new InMemoryPskStore();
-		// put in the PSK store the default identity/psk for tinydtls tests
-		pskStore.setKey(config.getPskIdentity(), config.getPskKey());
+		operation = config.getOperation();
 		
 		try {
-			// load the trust store
-			KeyStore trustStore = KeyStore.getInstance("JKS");
-			InputStream inTrust = new FileInputStream(config.getTrustLocation()); 
-			trustStore.load(inTrust, config.getTrustPassword().toCharArray());
-			
-			// load the key store
-			KeyStore keyStore = KeyStore.getInstance("JKS");
-			InputStream inKey = new FileInputStream(config.getKeyLocation());
-			keyStore.load(inKey, config.getKeyPassword().toCharArray());
-
 			DtlsConnectorConfig.Builder builder = new DtlsConnectorConfig.Builder();
-			builder.setPskStore(pskStore);
+			builder.setSupportedCipherSuites(config.getCipherSuites());
+			if (config.getCipherSuites().stream().anyMatch(cs -> cs.isPskBased())) {
+				InMemoryPskStore pskStore = new InMemoryPskStore();
+				// put in the PSK store the default identity/psk for tinydtls tests
+				pskStore.setKey(config.getPskIdentity(), config.getPskKey());
+				builder.setPskStore(pskStore);
+			}
+			if (config.getCipherSuites().stream().anyMatch(cs -> !cs.getCertificateKeyAlgorithm().equals(CertificateKeyAlgorithm.NONE))) {
+				// load the trust store
+				KeyStore trustStore = KeyStore.getInstance("JKS");
+				InputStream inTrust = new FileInputStream(config.getTrustLocation()); 
+				trustStore.load(inTrust, config.getTrustPassword().toCharArray());
+				
+				// load the key store
+				KeyStore keyStore = KeyStore.getInstance("JKS");
+				InputStream inKey = new FileInputStream(config.getKeyLocation());
+				keyStore.load(inKey, config.getKeyPassword().toCharArray());
+
+				builder.setIdentity((PrivateKey)keyStore.getKey(config.getKeyAlias(), config.getKeyPassword().toCharArray()),
+						keyStore.getCertificateChain(config.getKeyAlias()), CertificateType.X_509);
+				
+				// You can load multiple certificates if needed
+				Certificate[] trustedCertificates = new Certificate[1];
+				trustedCertificates[0] = trustStore.getCertificate(config.getTrustAlias());
+				builder.setTrustStore(trustedCertificates);
+			}
+			
 			if (config.getStarterAddress() == null) {
 				builder.setAddress(new InetSocketAddress(config.getPort()));
 			}
-			builder.setIdentity((PrivateKey)keyStore.getKey(config.getKeyAlias(), config.getKeyPassword().toCharArray()),
-					keyStore.getCertificateChain(config.getKeyAlias()), CertificateType.X_509);
 			//builder.setRecommendedCipherSuitesOnly(false);
-			builder.setSupportedCipherSuites(config.getCipherSuites().toArray(new CipherSuite [config.getCipherSuites().size()]));
 			builder.setRetransmissionTimeout(config.getTimeout());
 			builder.setMaxConnections(config.getMaxConnections());
 			
 			builder.setReceiverThreadCount(1);
 			builder.setConnectionThreadCount(1);
-			
-			// You can load multiple certificates if needed
-			Certificate[] trustedCertificates = new Certificate[1];
-			trustedCertificates[0] = trustStore.getCertificate(config.getTrustAlias());
-			builder.setTrustStore(trustedCertificates);
 			
 			switch(config.getClientAuth()) {
 			case NEEDED:
@@ -157,9 +164,14 @@ public class ExampleDTLSServer extends Thread {
 			if (LOG.isInfoEnabled()) {
 				LOG.info("Received request: {}", new String(raw.getBytes()));
 			}
-			RawData response = RawData.outbound("ACK".getBytes(),
+			RawData data = RawData.outbound(raw.getBytes(),
 					raw.getEndpointContext(), null, false);
-			connector.send(response);
+			if (operation == Operation.FULL || operation == Operation.ONE_ECHO) {
+				connector.send(data);
+				if (operation == Operation.ONE_ECHO) {
+					stopServer();
+				}
+			}
 		}
 	}
 

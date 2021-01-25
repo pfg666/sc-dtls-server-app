@@ -68,6 +68,9 @@ public class ExampleDTLSClientConfig {
 	@Parameter(names = "-clientAuth", required = false, description = "Defines the authentication method.")
 	private ClientAuth clientAuth = ClientAuth.DISABLED;
 	
+	@Parameter(names = "-operation", required = false, description = "The client's mode of operation.")
+	private Operation operation = Operation.FULL;
+	
 	public Integer getStartTimeout() {
 		return startTimeout;
 	}
@@ -136,6 +139,10 @@ public class ExampleDTLSClientConfig {
 	
 	public boolean isContinuous() {
 		return continuous;
+	}
+	
+	public Operation getOperation() {
+		return operation;
 	}
 	
 }

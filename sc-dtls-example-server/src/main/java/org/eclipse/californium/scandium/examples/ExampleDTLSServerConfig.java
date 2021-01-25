@@ -68,6 +68,9 @@ public class ExampleDTLSServerConfig {
 	@Parameter(names = "-maxConnections", required = false, description = "The maximum number of connections.")
 	private Integer maxConnections = 1;
 	
+	@Parameter(names = "-operation", required = false, description = "The client's mode of operation.")
+	private Operation operation = Operation.FULL;
+	
 	public String getTrustLocation() {
 		return trustLocation;
 	}
@@ -136,6 +139,10 @@ public class ExampleDTLSServerConfig {
 	
 	public Integer getMaxConnections() {
 		return maxConnections;
+	}
+	
+	public Operation getOperation() {
+		return operation;
 	}
 	
 }
