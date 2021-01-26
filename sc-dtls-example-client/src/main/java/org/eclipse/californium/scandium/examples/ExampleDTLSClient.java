@@ -21,7 +21,6 @@
  ******************************************************************************/
 package org.eclipse.californium.scandium.examples;
 
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
@@ -38,7 +37,6 @@ import org.eclipse.californium.elements.RawDataChannel;
 import org.eclipse.californium.scandium.DTLSConnector;
 import org.eclipse.californium.scandium.config.DtlsConnectorConfig;
 import org.eclipse.californium.scandium.dtls.CertificateType;
-import org.eclipse.californium.scandium.dtls.cipher.CipherSuite;
 import org.eclipse.californium.scandium.dtls.cipher.CipherSuite.CertificateKeyAlgorithm;
 import org.eclipse.californium.scandium.dtls.pskstore.PskStore;
 import org.eclipse.californium.scandium.dtls.pskstore.StaticPskStore;
@@ -63,7 +61,12 @@ public class ExampleDTLSClient implements Runnable {
 		operation = config.getOperation();
 		try {
 			DtlsConnectorConfig.Builder builder = new DtlsConnectorConfig.Builder();
+			
+			// Allows us to use cipher suites such as TLS_PSK_WITH_AES_128_CBC_SHA256
+			// Only necessary in later (post 2.0.0) versions of Scandium.
+			builder.setRecommendedCipherSuitesOnly(false);
 			builder.setSupportedCipherSuites(config.getCipherSuites());
+			
 			if (config.getCipherSuites().stream().anyMatch(cs -> cs.isPskBased())) {
 				PskStore pskStore = new StaticPskStore(config.getPskIdentity(), config.getPskKey());
 				builder.setPskStore(pskStore);
@@ -71,12 +74,12 @@ public class ExampleDTLSClient implements Runnable {
 			if (config.getCipherSuites().stream().anyMatch(cs -> !cs.getCertificateKeyAlgorithm().equals(CertificateKeyAlgorithm.NONE))) {
 				// load the trust store
 				KeyStore trustStore = KeyStore.getInstance("JKS");
-				InputStream inTrust = new FileInputStream(config.getTrustLocation()); 
+				InputStream inTrust = config.getTrustInputStream();  
 				trustStore.load(inTrust, config.getTrustPassword().toCharArray());
 							
 				// load the key store
 				KeyStore keyStore = KeyStore.getInstance("JKS");
-				InputStream inKey = new FileInputStream(config.getKeyLocation());
+				InputStream inKey = config.getKeyInputStream();
 				keyStore.load(inKey, config.getKeyPassword().toCharArray());
 
 				builder.setIdentity((PrivateKey)keyStore.getKey(config.getKeyAlias(), config.getKeyPassword().toCharArray()),
@@ -88,8 +91,7 @@ public class ExampleDTLSClient implements Runnable {
 				trustedCertificates[0] = trustStore.getCertificate(config.getTrustAlias());
 				builder.setTrustStore(trustedCertificates);
 			}
-			//builder.setRecommendedCipherSuitesOnly(false);
-			builder.setSupportedCipherSuites(config.getCipherSuites().toArray(new CipherSuite [config.getCipherSuites().size()]));
+
 			builder.setRetransmissionTimeout(config.getTimeout());
 			
 			builder.setConnectionThreadCount(1);

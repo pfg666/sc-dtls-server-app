@@ -17,7 +17,6 @@
  ******************************************************************************/
 package org.eclipse.californium.scandium.examples;
 
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
@@ -58,7 +57,12 @@ public class ExampleDTLSServer extends Thread {
 		
 		try {
 			DtlsConnectorConfig.Builder builder = new DtlsConnectorConfig.Builder();
+			
+			// Allows us to use cipher suites such as TLS_PSK_WITH_AES_128_CBC_SHA256
+			// Only necessary in later (post 2.0.0) versions of Scandium.
+			builder.setRecommendedCipherSuitesOnly(false);
 			builder.setSupportedCipherSuites(config.getCipherSuites());
+			
 			if (config.getCipherSuites().stream().anyMatch(cs -> cs.isPskBased())) {
 				InMemoryPskStore pskStore = new InMemoryPskStore();
 				// put in the PSK store the default identity/psk for tinydtls tests
@@ -68,12 +72,12 @@ public class ExampleDTLSServer extends Thread {
 			if (config.getCipherSuites().stream().anyMatch(cs -> !cs.getCertificateKeyAlgorithm().equals(CertificateKeyAlgorithm.NONE))) {
 				// load the trust store
 				KeyStore trustStore = KeyStore.getInstance("JKS");
-				InputStream inTrust = new FileInputStream(config.getTrustLocation()); 
+				InputStream inTrust = config.getTrustInputStream(); 
 				trustStore.load(inTrust, config.getTrustPassword().toCharArray());
 				
 				// load the key store
 				KeyStore keyStore = KeyStore.getInstance("JKS");
-				InputStream inKey = new FileInputStream(config.getKeyLocation());
+				InputStream inKey = config.getKeyInputStream();
 				keyStore.load(inKey, config.getKeyPassword().toCharArray());
 
 				builder.setIdentity((PrivateKey)keyStore.getKey(config.getKeyAlias(), config.getKeyPassword().toCharArray()),
@@ -88,7 +92,7 @@ public class ExampleDTLSServer extends Thread {
 			if (config.getStarterAddress() == null) {
 				builder.setAddress(new InetSocketAddress(config.getPort()));
 			}
-			//builder.setRecommendedCipherSuitesOnly(false);
+			
 			builder.setRetransmissionTimeout(config.getTimeout());
 			builder.setMaxConnections(config.getMaxConnections());
 			

@@ -1,5 +1,8 @@
 package org.eclipse.californium.scandium.examples;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.List;
 
@@ -11,31 +14,31 @@ import com.beust.jcommander.Parameter;
  * Contains the minimal subset of parameters which one should be able to toy around with when testing the scandium DTLS server.
  */
 public class ExampleDTLSServerConfig {
-	private static final String DEFAULT_TRUST_STORE_PASSWORD = "student";
-	private static final String DEFAULT_TRUST_STORE_LOCATION = "ec_secp256r1.jks";
-	private static final String DEFAULT_TRUST_STORE_ALIAS = "tls-attacker";
+	private static final String DEFAULT_STORE_PASSWORD = "student";
+	private static final String DEFAULT_STORE_LOCATION = "/ec_secp256r1.jks";
+	private static final String DEFAULT_STORE_ALIAS = "tls-attacker";
 	private static final int DEFAULT_PORT = 20000; 
 	
 	@Parameter(names = "-port", required = false, description = "The port the server is listening to")
 	private Integer port = DEFAULT_PORT;
 	
 	@Parameter(names = "-trustLocation", required = false, description = "The location of the trust store to use")
-	private String trustLocation = DEFAULT_TRUST_STORE_LOCATION;
+	private String trustLocation;
 	
 	@Parameter(names = "-trustAlias", required = false, description = "The alias looked up to gather certs from the trust store")
-	private String trustAlias = DEFAULT_TRUST_STORE_ALIAS;
+	private String trustAlias = DEFAULT_STORE_ALIAS;
 	
 	@Parameter(names = "-trustPassword", required = false, description = "The password with which the trust store is protected")
-	private String trustPassword = DEFAULT_TRUST_STORE_PASSWORD;
+	private String trustPassword = DEFAULT_STORE_PASSWORD;
 	
 	@Parameter(names = "-keyLocation", required = false, description = "The location of the key store to use")
-	private String keyLocation = DEFAULT_TRUST_STORE_LOCATION;
+	private String keyLocation;
 	
 	@Parameter(names = "-keyAlias", required = false, description = "The alias looked up to gather certs from the trust store")
-	private String keyAlias = DEFAULT_TRUST_STORE_ALIAS;
+	private String keyAlias = DEFAULT_STORE_ALIAS;
 
 	@Parameter(names = "-keyPassword", required = false, description = "The location with which the key store is protected")
-	private String keyPassword = DEFAULT_TRUST_STORE_PASSWORD;
+	private String keyPassword = DEFAULT_STORE_PASSWORD;
 
 	@Parameter(names = "-pskKey", converter=HexStringToBytesConverter.class, required = false, description = "The password (in hex form without the prefix 0x) with which the trust store is protected")
 	private byte [] pskKey = new byte [] {0x12, 0x34}; 
@@ -74,6 +77,14 @@ public class ExampleDTLSServerConfig {
 	public String getTrustLocation() {
 		return trustLocation;
 	}
+	
+	public InputStream getTrustInputStream() throws FileNotFoundException {
+		if (trustLocation == null) {
+			return this.getClass().getResourceAsStream(DEFAULT_STORE_LOCATION);
+		} else {
+			return new FileInputStream(trustLocation);
+		}
+	}
 
 	public String getTrustAlias() {
 		return trustAlias;
@@ -85,6 +96,14 @@ public class ExampleDTLSServerConfig {
 	
 	public String getKeyLocation() {
 		return keyLocation;
+	}
+	
+	public InputStream getKeyInputStream() throws FileNotFoundException {
+		if (keyLocation == null) {
+			return this.getClass().getResourceAsStream(DEFAULT_STORE_LOCATION);
+		} else {
+			return new FileInputStream(keyLocation);
+		}
 	}
 
 	public String getKeyPassword() {
