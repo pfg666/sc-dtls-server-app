@@ -21,7 +21,6 @@
  ******************************************************************************/
 package org.eclipse.californium.scandium.examples;
 
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
@@ -38,7 +37,7 @@ import org.eclipse.californium.elements.RawDataChannel;
 import org.eclipse.californium.scandium.DTLSConnector;
 import org.eclipse.californium.scandium.config.DtlsConnectorConfig;
 import org.eclipse.californium.scandium.dtls.CertificateType;
-import org.eclipse.californium.scandium.dtls.cipher.CipherSuite;
+import org.eclipse.californium.scandium.dtls.cipher.CipherSuite.CertificateKeyAlgorithm;
 import org.eclipse.californium.scandium.dtls.pskstore.PskStore;
 import org.eclipse.californium.scandium.dtls.pskstore.StaticPskStore;
 import org.slf4j.Logger;
@@ -49,41 +48,54 @@ import com.beust.jcommander.ParameterException;
 
 public class ExampleDTLSClient implements Runnable {
 	private static final int DEFAULT_PORT = 5684;
+	private static final String MESSAGE="HELLO";
 	private static final Logger LOG = LoggerFactory.getLogger(ExampleDTLSClient.class);
 
 	private static Integer port = DEFAULT_PORT;
 	
 	private DTLSConnector dtlsConnector;
+	private Operation operation;
 	
 	
 	public ExampleDTLSClient(ExampleDTLSClientConfig config) {
-		PskStore pskStore = new StaticPskStore(config.getPskIdentity(), config.getPskKey());
+		operation = config.getOperation();
 		try {
-			// load the trust store
-			KeyStore trustStore = KeyStore.getInstance("JKS");
-			InputStream inTrust = new FileInputStream(config.getTrustLocation()); 
-			trustStore.load(inTrust, config.getTrustPassword().toCharArray());
-						
-			// load the key store
-			KeyStore keyStore = KeyStore.getInstance("JKS");
-			InputStream inKey = new FileInputStream(config.getKeyLocation());
-			keyStore.load(inKey, config.getKeyPassword().toCharArray());
-			
 			DtlsConnectorConfig.Builder builder = new DtlsConnectorConfig.Builder();
-			builder.setPskStore(pskStore);
-			builder.setIdentity((PrivateKey)keyStore.getKey(config.getKeyAlias(), config.getKeyPassword().toCharArray()),
-					keyStore.getCertificateChain(config.getKeyAlias()), CertificateType.X_509);
+			
+			// Allows us to use cipher suites such as TLS_PSK_WITH_AES_128_CBC_SHA256
+			// Only necessary in later (post 2.0.0) versions of Scandium.
 			builder.setRecommendedCipherSuitesOnly(false);
-			builder.setSupportedCipherSuites(config.getCipherSuites().toArray(new CipherSuite [config.getCipherSuites().size()]));
+			builder.setSupportedCipherSuites(config.getCipherSuites());
+			
+			if (config.getCipherSuites().stream().anyMatch(cs -> cs.isPskBased())) {
+				PskStore pskStore = new StaticPskStore(config.getPskIdentity(), config.getPskKey());
+				builder.setPskStore(pskStore);
+			}
+			if (config.getCipherSuites().stream().anyMatch(cs -> !cs.getCertificateKeyAlgorithm().equals(CertificateKeyAlgorithm.NONE))) {
+				// load the trust store
+				KeyStore trustStore = KeyStore.getInstance("JKS");
+				InputStream inTrust = config.getTrustInputStream();  
+				trustStore.load(inTrust, config.getTrustPassword().toCharArray());
+							
+				// load the key store
+				KeyStore keyStore = KeyStore.getInstance("JKS");
+				InputStream inKey = config.getKeyInputStream();
+				keyStore.load(inKey, config.getKeyPassword().toCharArray());
+
+				builder.setIdentity((PrivateKey)keyStore.getKey(config.getKeyAlias(), config.getKeyPassword().toCharArray()),
+						keyStore.getCertificateChain(config.getKeyAlias()), CertificateType.X_509);
+				
+
+				// You can load multiple certificates if needed
+				Certificate[] trustedCertificates = new Certificate[1];
+				trustedCertificates[0] = trustStore.getCertificate(config.getTrustAlias());
+				builder.setTrustStore(trustedCertificates);
+			}
+
 			builder.setRetransmissionTimeout(config.getTimeout());
 			
 			builder.setConnectionThreadCount(1);
 			builder.setReceiverThreadCount(1);
-
-			// You can load multiple certificates if needed
-			Certificate[] trustedCertificates = new Certificate[1];
-			trustedCertificates[0] = trustStore.getCertificate(config.getTrustAlias());
-			builder.setTrustStore(trustedCertificates);
 			
 			switch(config.getClientAuth()) {
 			case NEEDED:
@@ -117,7 +129,12 @@ public class ExampleDTLSClient implements Runnable {
 		LOG.info("Received response: ", new String(raw.getBytes()));
 		RawData.outbound(raw.getBytes(), raw.getEndpointContext(), null, false);
 		RawData data = RawData.outbound(raw.getBytes(), raw.getEndpointContext(), null, false);
-		dtlsConnector.send(data);
+		if (operation == Operation.FULL || operation == Operation.ONE_ECHO) {
+			dtlsConnector.send(data);
+		}
+		if (operation == Operation.ONE_ECHO || operation == Operation.ONE_MESSAGE) {
+			stopClient();
+		}
 	}
 
 	private void startClient() {
@@ -137,7 +154,11 @@ public class ExampleDTLSClient implements Runnable {
 	}
 	
 	private void startTest(InetSocketAddress peer) {
-		RawData data = RawData.outbound(new byte [] {}, new AddressEndpointContext(peer), null, false);
+		byte [] message = {};
+		if (operation == Operation.ONE_MESSAGE) {
+			message = MESSAGE.getBytes();
+		}
+		RawData data = RawData.outbound(message, new AddressEndpointContext(peer), null, false);
 		dtlsConnector.send(data);
 	}
 
