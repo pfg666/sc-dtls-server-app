@@ -27,6 +27,8 @@ import java.security.PrivateKey;
 import java.security.cert.Certificate;
 
 import org.eclipse.californium.elements.Connector;
+import org.eclipse.californium.elements.EndpointContext;
+import org.eclipse.californium.elements.MessageCallback;
 import org.eclipse.californium.elements.RawData;
 import org.eclipse.californium.elements.RawDataChannel;
 import org.eclipse.californium.scandium.DTLSConnector;
@@ -40,66 +42,66 @@ import org.slf4j.LoggerFactory;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.ParameterException;
 
-
 /**
  * A restartable echo-capable DTLS server.
  */
 public class ExampleDTLSServer extends Thread {
 
-	private static final Logger LOG = LoggerFactory
-			.getLogger(ExampleDTLSServer.class.getName());
+	private static final Logger LOG = LoggerFactory.getLogger(ExampleDTLSServer.class.getName());
 
 	private DTLSConnector dtlsConnector;
 	private Operation operation;
 
 	public ExampleDTLSServer(ExampleDTLSServerConfig config) {
 		operation = config.getOperation();
-		
+
 		try {
 			DtlsConnectorConfig.Builder builder = new DtlsConnectorConfig.Builder();
-			
+
 			// Allows us to use cipher suites such as TLS_PSK_WITH_AES_128_CBC_SHA256
 			// Only necessary in later (post 2.0.0) versions of Scandium.
 			builder.setRecommendedCipherSuitesOnly(false);
 			builder.setSupportedCipherSuites(config.getCipherSuites());
-			
+
 			if (config.getCipherSuites().stream().anyMatch(cs -> cs.isPskBased())) {
 				InMemoryPskStore pskStore = new InMemoryPskStore();
 				// put in the PSK store the default identity/psk for tinydtls tests
 				pskStore.setKey(config.getPskIdentity(), config.getPskKey());
 				builder.setPskStore(pskStore);
 			}
-			if (config.getCipherSuites().stream().anyMatch(cs -> !cs.getCertificateKeyAlgorithm().equals(CertificateKeyAlgorithm.NONE))) {
+			if (config.getCipherSuites().stream()
+					.anyMatch(cs -> !cs.getCertificateKeyAlgorithm().equals(CertificateKeyAlgorithm.NONE))) {
 				// load the trust store
 				KeyStore trustStore = KeyStore.getInstance("JKS");
-				InputStream inTrust = config.getTrustInputStream(); 
+				InputStream inTrust = config.getTrustInputStream();
 				trustStore.load(inTrust, config.getTrustPassword().toCharArray());
-				
+
 				// load the key store
 				KeyStore keyStore = KeyStore.getInstance("JKS");
 				InputStream inKey = config.getKeyInputStream();
 				keyStore.load(inKey, config.getKeyPassword().toCharArray());
 
-				builder.setIdentity((PrivateKey)keyStore.getKey(config.getKeyAlias(), config.getKeyPassword().toCharArray()),
+				builder.setIdentity(
+						(PrivateKey) keyStore.getKey(config.getKeyAlias(), config.getKeyPassword().toCharArray()),
 						keyStore.getCertificateChain(config.getKeyAlias()), CertificateType.X_509);
-				
+
 				// You can load multiple certificates if needed
 				Certificate[] trustedCertificates = new Certificate[1];
 				trustedCertificates[0] = trustStore.getCertificate(config.getTrustAlias());
 				builder.setTrustStore(trustedCertificates);
 			}
-			
+
 			if (config.getStarterAddress() == null) {
 				builder.setAddress(new InetSocketAddress(config.getPort()));
 			}
 
 			builder.setRetransmissionTimeout(config.getTimeout());
 			builder.setMaxConnections(config.getMaxConnections());
-			
-			builder.setReceiverThreadCount(1);
+
+			builder.setReceiverThreadCount(2);
 			builder.setConnectionThreadCount(1);
-			
-			switch(config.getClientAuth()) {
+
+			switch (config.getClientAuth()) {
 			case NEEDED:
 				builder.setClientAuthenticationRequired(true);
 				break;
@@ -124,17 +126,16 @@ public class ExampleDTLSServer extends Thread {
 			dtlsConnector.start();
 			LOG.info("DTLS example server started");
 		} catch (IOException e) {
-			throw new IllegalStateException(
-					"Unexpected error starting the DTLS UDP server", e);
+			throw new IllegalStateException("Unexpected error starting the DTLS UDP server", e);
 		}
 	}
-	
+
 	public void stopServer() {
 		// we (hopefully) destroy any leftover state
 		dtlsConnector.destroy();
 		LOG.info("DTLS example server stopped");
 	}
-	
+
 	public void run() {
 		startServer();
 		try {
@@ -145,15 +146,14 @@ public class ExampleDTLSServer extends Thread {
 			stopServer();
 		}
 	}
-	
+
 	public boolean isRunning() {
 		return dtlsConnector.isRunning();
 	}
-	
+
 	public InetSocketAddress getAddress() {
 		return dtlsConnector.getAddress();
 	}
-
 
 	private class RawDataChannelImpl implements RawDataChannel {
 
@@ -165,16 +165,36 @@ public class ExampleDTLSServer extends Thread {
 
 		@Override
 		public void receiveData(final RawData raw) {
-			if (LOG.isInfoEnabled()) {
-				LOG.info("Received request: {}", new String(raw.getBytes()));
+			LOG.info("Received message: {}", new String(raw.getBytes()));
+			MessageCallback callback = null;
+			if (operation == Operation.ONE_ECHO) {
+				callback = new MessageCallback() {
+					@Override
+					public void onSent() {
+						stopServer();
+					}
+
+					@Override
+					public void onError(Throwable error) {
+					}
+
+					@Override
+					public void onDtlsRetransmission(int flight) {
+					}
+
+					@Override
+					public void onContextEstablished(EndpointContext context) {
+
+					}
+
+					@Override
+					public void onConnecting() {
+					}
+				};
 			}
-			RawData data = RawData.outbound(raw.getBytes(),
-					raw.getEndpointContext(), null, false);
+			RawData data = RawData.outbound(raw.getBytes(), raw.getEndpointContext(), callback, false);
 			if (operation == Operation.FULL || operation == Operation.ONE_ECHO) {
 				connector.send(data);
-				if (operation == Operation.ONE_ECHO) {
-					stopServer();
-				}
 			}
 		}
 	}
@@ -184,25 +204,23 @@ public class ExampleDTLSServer extends Thread {
 		JCommander commander = new JCommander(config);
 		try {
 			commander.parse(args);
-		} catch(ParameterException e) {
+		} catch (ParameterException e) {
 			LOG.error("Could not parse provided parameters. ", e.getLocalizedMessage());
 			commander.usage();
 			return;
 		}
-		
+
 		if (config.isHelp()) {
 			commander.usage();
 			return;
 		}
-		
-	
+
 		final ExampleDTLSServer server = new ExampleDTLSServer(config);
 		if (config.getStarterAddress() == null) {
 			server.run();
 		} else {
 			try {
-				ThreadStarter ts = new ThreadStarter(server, 
-						config.getStarterAddress(),
+				ThreadStarter ts = new ThreadStarter(() -> new ExampleDTLSServer(config), config.getStarterAddress(),
 						config.isContinuous());
 				ts.run();
 			} catch (SocketException e) {
@@ -211,7 +229,8 @@ public class ExampleDTLSServer extends Thread {
 			} catch (IOException e) {
 				LOG.error(e.getLocalizedMessage());
 				server.stopServer();
-			};
+			}
+			;
 		}
 	}
 }

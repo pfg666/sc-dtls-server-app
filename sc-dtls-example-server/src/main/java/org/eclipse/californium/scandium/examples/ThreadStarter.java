@@ -10,6 +10,7 @@ import java.io.PrintWriter;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.function.Supplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,16 +23,17 @@ public class ThreadStarter {
 	private static final Logger LOG = LoggerFactory.getLogger(ThreadStarter.class);
 	
 	private ServerSocket srvSocket;
+	private Supplier<ExampleDTLSServer> serverBuilder;
 	private ExampleDTLSServer dtlsServer;
 	private Socket cmdSocket;
 	private Integer port;
 	private boolean continuous;
 	
-	public ThreadStarter(ExampleDTLSServer dtlsServer, String ipPort, boolean continuous) throws IOException {
+	public ThreadStarter(Supplier<ExampleDTLSServer> dtlsServerSupplier, String ipPort, boolean continuous) throws IOException {
 		String[] addr = ipPort.split("\\:");
 		port = Integer.valueOf(addr[1]);
-		InetSocketAddress address = new InetSocketAddress(addr[0], port);		
-		this.dtlsServer = dtlsServer;
+		InetSocketAddress address = new InetSocketAddress(addr[0], port);
+		serverBuilder = dtlsServerSupplier;
 		srvSocket = new ServerSocket();
 		srvSocket.setReuseAddress(true);
 		srvSocket.bind(address);
@@ -67,7 +69,10 @@ public class ThreadStarter {
 						case "":
 							// we stop the server and restart it
 							// synchronization is taken care of by the scandium library, meaning we don't have to wait until the server is running
-							dtlsServer.stopServer();
+							if (dtlsServer != null) {
+								dtlsServer.stopServer();
+							}
+							dtlsServer = serverBuilder.get();
 							dtlsServer.startServer();
 							
 							out.write(String.valueOf(dtlsServer.getAddress().getPort()));
