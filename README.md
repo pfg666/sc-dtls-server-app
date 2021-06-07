@@ -1,7 +1,7 @@
 ## scandium-dtls-server
 A DTLS server test program based on [Scandium/Californium][scandium] which is adapted from the example given in their repository but has a few more knobs that one can toy with. 
 
-It was used to test the Scandium DTLS implementations as part of the state fuzzing work published in [USENIX 20][usenix]. 
+This program was used to test the Scandium DTLS server implementations as part of the state fuzzing work published in [USENIX 20][usenix]. 
 As we extended the program for clients, we moved development to a [new repository][new-scandium].
 
 At the time of development, there were two versions of Scandium available, 1.x.y, and 2.x.y. 
